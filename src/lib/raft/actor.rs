@@ -34,7 +34,7 @@ impl RaftActor {
                 last_log_index,
                 last_log_term,
             } => {
-                // Reply false if term < currentTerm (§5.1)
+                // reply false if term < currentTerm (§5.1)
                 if term < self.state.current_term {
                     respond_to.send(false).unwrap();
                     return;

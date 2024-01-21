@@ -10,7 +10,7 @@ impl RaftActorHandle {
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::channel(32);
         let actor = RaftActor::new(receiver);
-        tokio::spawn(RaftActor::run(actor));
+        tokio::task::spawn(RaftActor::run(actor));
 
         Self { sender }
     }
@@ -59,3 +59,4 @@ impl RaftActorHandle {
         receiver.await.expect("Actor task has been killed")
     }
 }
+

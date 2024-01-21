@@ -1,5 +1,5 @@
 use jsonrpsee::http_client::HttpClientBuilder;
-use raft_kv::rpc_api::RpcApiClient;
+use raft_kv::RpcApiClient;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 

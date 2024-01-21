@@ -17,8 +17,22 @@ pub trait RpcApi {
 
     // Raft RPCs
     #[method(name = "appendEntries")]
-    fn append_entries(&self, term: u64, leader_id: String, prev_log_index: u64, prev_log_term: u64, entries: Vec<String>, leader_commit: u64) -> RpcResult<()>;
+    fn append_entries(
+        &self,
+        term: u64,
+        leader_id: String,
+        prev_log_index: u64,
+        prev_log_term: u64,
+        entries: Vec<String>,
+        leader_commit: u64,
+    ) -> RpcResult<bool>; // TODO: check if this is correct
 
     #[method(name = "requestVote")]
-    fn request_vote(&self, term: u64, candidate_id: String, last_log_index: u64, last_log_term: u64) -> RpcResult<()>;
+    fn request_vote(
+        &self,
+        term: u64,
+        candidate_id: String,
+        last_log_index: u64,
+        last_log_term: u64,
+    ) -> RpcResult<bool>; // TODO: check if this is correct
 }

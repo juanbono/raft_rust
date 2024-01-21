@@ -1,5 +1,5 @@
 use jsonrpsee::http_client::HttpClientBuilder;
-use raft_kv::rpc::{consensus::ConsensusRpcClient, kv::KvRpcClient};
+use raft_kv::rpc_api::RpcApiClient;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -9,9 +9,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let client = HttpClientBuilder::default().build("http://localhost:1234")?;
 
     let response: String = client.version().await?;
-    info!("response: {:?}", response);
-
-    let response: String = client.test().await?;
     info!("response: {:?}", response);
 
     Ok(())

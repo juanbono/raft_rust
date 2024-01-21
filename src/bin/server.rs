@@ -1,5 +1,6 @@
 use anyhow::Error;
 use jsonrpsee::server::{ServerBuilder, ServerHandle};
+use raft_kv::{RpcApiServer, RpcBackend};
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
@@ -19,11 +20,10 @@ async fn main() {
 }
 
 async fn start_server(port: u16) -> Result<ServerHandle, Error> {
-    let rpc_module = raft_kv::rpc::build_rpc()?;
     let server = ServerBuilder::default()
         .build(format!("127.0.0.1:{}", port))
         .await?;
-    let server_handle = server.start(rpc_module);
+    let server_handle = server.start(RpcBackend::new().into_rpc());
 
     Ok(server_handle)
 }

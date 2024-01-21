@@ -1,58 +1,7 @@
+use crate::raft::{message::RaftMessage, state::RaftState};
 use tokio::sync::{mpsc, oneshot};
 
-pub enum RaftStateType {
-    Follower,
-    Candidate,
-    Leader,
-}
-
-pub struct RaftState {
-    pub state_type: RaftStateType,
-    pub current_term: u64,
-    pub voted_for: Option<String>,
-    pub log: Vec<String>,
-    pub commit_index: u64,
-    pub last_applied: u64,
-    // TODO: consider moving the following to Leader variant in `RaftState`
-    pub next_index: Vec<u64>,
-    pub match_index: Vec<u64>,
-}
-
-impl RaftState {
-    pub fn new() -> Self {
-        RaftState {
-            state_type: RaftStateType::Follower,
-            current_term: 0,
-            voted_for: None,
-            log: Vec::new(),
-            commit_index: 0,
-            last_applied: 0,
-            next_index: Vec::new(),
-            match_index: Vec::new(),
-        }
-    }
-}
-
-pub enum RaftMessage {
-    AppendEntries {
-        respond_to: oneshot::Sender<bool>,
-        term: u64,
-        leader_id: String,
-        prev_log_index: u64,
-        prev_log_term: u64,
-        entries: Vec<String>,
-        leader_commit: u64,
-    },
-    RequestVote {
-        respond_to: oneshot::Sender<bool>,
-        term: u64,
-        candidate_id: String,
-        last_log_index: u64,
-        last_log_term: u64,
-    },
-}
-
-struct RaftActor {
+pub struct RaftActor {
     receiver: mpsc::Receiver<RaftMessage>,
     state: RaftState,
 }

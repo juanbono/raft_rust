@@ -1,11 +1,11 @@
-pub enum RaftState {
+pub enum RaftStateType {
     Follower,
     Candidate,
     Leader,
 }
 
-pub struct Raft {
-    pub state: RaftState,
+pub struct RaftState {
+    pub state_type: RaftStateType,
     pub current_term: u64,
     pub voted_for: Option<String>,
     pub log: Vec<String>,
@@ -16,10 +16,10 @@ pub struct Raft {
     pub match_index: Vec<u64>,
 }
 
-impl Raft {
+impl RaftState {
     pub fn new() -> Self {
-        Raft {
-            state: RaftState::Follower,
+        RaftState {
+            state_type: RaftStateType::Follower,
             current_term: 0,
             voted_for: None,
             log: Vec::new(),

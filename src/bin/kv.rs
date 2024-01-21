@@ -6,9 +6,16 @@ use tracing_subscriber::EnvFilter;
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     initialize_logs();
+    // TODO: read from args or env
     let client = HttpClientBuilder::default().build("http://localhost:1234")?;
 
     let response: String = client.version().await?;
+    info!("response: {:?}", response);
+
+    let response: bool = client.request_vote(0, "".into(), 0, 0).await?;
+    info!("response: {:?}", response);
+
+    let response: bool = client.append_entries(0, "".into(), 0, 0, vec![], 0).await?;
     info!("response: {:?}", response);
 
     Ok(())

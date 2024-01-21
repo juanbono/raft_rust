@@ -27,10 +27,26 @@ impl RaftActor {
 
                 respond_to.send(false).unwrap();
             }
-            RaftMessage::RequestVote { respond_to, .. } => {
-                // TODO: Add the real implementation
-
-                respond_to.send(true).unwrap();
+            RaftMessage::RequestVote {
+                respond_to,
+                candidate_id,
+                term,
+                last_log_index,
+                last_log_term,
+            } => {
+                // Reply false if term < currentTerm (§5.1)
+                if term < self.state.current_term {
+                    respond_to.send(false).unwrap();
+                    return;
+                }
+                // TODO: check logs
+                let missing_check = true;
+                if self.state.voted_for.is_none() || missing_check {
+                    self.state.voted_for = Some(candidate_id);
+                    self.state.current_term = term;
+                    respond_to.send(true).unwrap();
+                    return;
+                }
             }
         }
     }

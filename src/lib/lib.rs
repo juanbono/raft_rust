@@ -1,30 +1,33 @@
+mod config;
 mod raft;
 mod rpc_api;
-mod config;
 mod utils;
 
+use jsonrpsee::core::{async_trait, RpcResult};
+use raft::RaftActorHandle;
 pub use rpc_api::{RpcApiClient, RpcApiServer};
-use jsonrpsee::core::RpcResult;
-use utils::kv_error;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
+use utils::kv_error;
 
 pub struct RpcBackend {
-    consensus: Arc<Mutex<raft::Raft>>,
+    raft_actor_handle: Arc<RaftActorHandle>,
     kv: Arc<Mutex<HashMap<String, String>>>,
 }
 
 impl RpcBackend {
     pub fn new() -> Self {
+        let raft_actor_handle = Arc::new(RaftActorHandle::new());
         RpcBackend {
+            raft_actor_handle,
             kv: Arc::new(Mutex::new(HashMap::new())),
-            consensus: Arc::new(Mutex::new(raft::Raft::new())),
         }
     }
 }
 
+#[async_trait]
 impl RpcApiServer for RpcBackend {
     fn version(&self) -> RpcResult<String> {
         Ok("0.1.0".into())
@@ -54,7 +57,7 @@ impl RpcApiServer for RpcBackend {
         }
     }
 
-    fn append_entries(
+    async fn append_entries(
         &self,
         term: u64,
         leader_id: String,
@@ -63,31 +66,38 @@ impl RpcApiServer for RpcBackend {
         entries: Vec<String>,
         leader_commit: u64,
     ) -> RpcResult<bool> {
-        let raft = self.consensus.lock().unwrap();
-        if term < raft.current_term {
-            return Ok(false);
-        }
-
-        // TODO: Rest of the impl
-
-        Ok(true)
+        let result = self
+            .raft_actor_handle
+            .append_entries(
+                term,
+                leader_id,
+                prev_log_index,
+                prev_log_term,
+                entries,
+                leader_commit,
+            )
+            .await;
+        Ok(result)
     }
 
-    fn request_vote(
+    async fn request_vote(
         &self,
         term: u64,
         candidate_id: String,
         last_log_index: u64,
         last_log_term: u64,
     ) -> RpcResult<bool> {
-        let raft = self.consensus.lock().unwrap();
-        if term < raft.current_term {
-            return Ok(false);
-        }
+        let result = self
+            .raft_actor_handle
+            .request_vote(term, candidate_id, last_log_index, last_log_term)
+            .await;
 
-        // TODO: rest of the impl
-
-        Ok(true)
+        Ok(result)
     }
 }
 
+impl Default for RpcBackend {
+    fn default() -> Self {
+        Self::new()
+    }
+}

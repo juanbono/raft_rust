@@ -6,3 +6,12 @@ server: build
 
 client: build
 	RUST_LOG=info cargo run --bin kv
+
+fmt:
+	cargo fmt --all
+
+lint:
+	cargo clippy --all
+
+test:
+	cargo test --all

@@ -5,10 +5,7 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
-
+    initialize_logs();
     let port = 1234;
     let handle = start_server(port).await;
 
@@ -29,4 +26,11 @@ async fn start_server(port: u16) -> Result<ServerHandle, Error> {
     let server_handle = server.start(rpc_module);
 
     Ok(server_handle)
+}
+
+#[inline]
+fn initialize_logs() {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
 }

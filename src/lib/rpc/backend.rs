@@ -6,13 +6,13 @@ use std::{
 };
 
 pub struct RpcBackend {
-    raft_actor_handle: Arc<RaftActorHandle>,
+    raft_actor_handle: RaftActorHandle,
     kv: Arc<Mutex<HashMap<String, String>>>,
 }
 
 impl RpcBackend {
     pub fn new() -> Self {
-        let raft_actor_handle = Arc::new(RaftActorHandle::new());
+        let raft_actor_handle = RaftActorHandle::new();
         RpcBackend {
             raft_actor_handle,
             kv: Arc::new(Mutex::new(HashMap::new())),

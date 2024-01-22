@@ -1,9 +1,11 @@
-use crate::{raft::RaftActorHandle, utils::kv_error, RpcApiServer};
+use crate::{raft::RaftActorHandle, RpcApiServer};
 use jsonrpsee::core::{async_trait, RpcResult};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
+
+use super::kv_error;
 
 pub struct RpcBackend {
     raft_actor_handle: RaftActorHandle,

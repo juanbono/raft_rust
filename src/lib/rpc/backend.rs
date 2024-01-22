@@ -11,8 +11,8 @@ pub struct RpcBackend {
 }
 
 impl RpcBackend {
-    pub fn new() -> Self {
-        let raft_actor_handle = RaftActorHandle::new();
+    pub fn new(peer_id: u8, peers: HashMap<u8, String>) -> Self {
+        let raft_actor_handle = RaftActorHandle::new(peer_id, peers);
         RpcBackend {
             raft_actor_handle,
             kv: Arc::new(Mutex::new(HashMap::new())),
@@ -86,11 +86,5 @@ impl RpcApiServer for RpcBackend {
             .await;
 
         Ok(result)
-    }
-}
-
-impl Default for RpcBackend {
-    fn default() -> Self {
-        Self::new()
     }
 }

@@ -3,21 +3,11 @@ use std::collections::HashMap;
 use std::io::{Error, ErrorKind};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct PeerConfig {
+struct PeerConfig {
     pub peers: HashMap<u8, String>,
 }
 
 impl PeerConfig {
-    pub fn new() -> Self {
-        Self {
-            peers: HashMap::new(),
-        }
-    }
-
-    pub fn add_peer(&mut self, id: u8, host: String, port: u16) {
-        self.peers.insert(id, format!("{}:{}", host, port));
-    }
-
     pub fn remove_peer(&mut self, id: u8) {
         self.peers.remove(&id);
     }

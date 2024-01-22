@@ -1,14 +1,24 @@
+use std::collections::HashMap;
+
 use crate::raft::{message::RaftMessage, state::RaftState};
 use tokio::sync::mpsc;
 
 pub struct RaftActor {
+    peer_id: u8,
+    peers: HashMap<u8, String>,
     receiver: mpsc::Receiver<RaftMessage>,
     state: RaftState,
 }
 
 impl RaftActor {
-    pub fn new(receiver: mpsc::Receiver<RaftMessage>) -> Self {
+    pub fn new(
+        peer_id: u8,
+        peers: HashMap<u8, String>,
+        receiver: mpsc::Receiver<RaftMessage>,
+    ) -> Self {
         RaftActor {
+            peer_id,
+            peers,
             receiver,
             state: RaftState::new(),
         }

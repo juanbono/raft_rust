@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::{actor::RaftActor, message::RaftMessage};
 use tokio::sync::{mpsc, oneshot};
 
@@ -7,9 +9,9 @@ pub struct RaftActorHandle {
 }
 
 impl RaftActorHandle {
-    pub fn new() -> Self {
+    pub fn new(peer_id: u8, peers: HashMap<u8, String>) -> Self {
         let (sender, receiver) = mpsc::channel(32);
-        let actor = RaftActor::new(receiver);
+        let actor = RaftActor::new(peer_id, peers, receiver);
         tokio::task::spawn(RaftActor::run(actor));
 
         Self { sender }
@@ -59,4 +61,3 @@ impl RaftActorHandle {
         receiver.await.expect("Actor task has been killed")
     }
 }
-

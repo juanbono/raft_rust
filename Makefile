@@ -15,3 +15,9 @@ lint:
 
 test:
 	cargo test --all
+
+docker-build:
+	docker build . -t server -f docker/Dockerfile
+
+docker-run:
+	docker run -p 8080:8080 -it --rm --name kv_server server

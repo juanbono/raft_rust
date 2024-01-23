@@ -1,6 +1,5 @@
-use tokio::sync::oneshot;
-
 use super::state::RaftStateType;
+use tokio::sync::oneshot;
 
 #[derive(Debug)]
 pub enum RaftMessage {

@@ -12,7 +12,7 @@
 /// - if votes received from majority of servers: become leader
 /// - if AppendEntries RPC received from new leader: convert to follower
 /// - if election timeout elapses: start new election
-/// 
+///
 /// Leader:
 /// - Upon election: send initial empty AppendEntries RPCs (heartbeat) to each
 ///  server; repeat during idle periods to prevent election timeouts (§5.2)
@@ -45,7 +45,7 @@ pub enum RaftStateType {
     /// - If successful: update nextIndex and matchIndex for follower (§5.3)
     /// - If AppendEntries fails because of log inconsistency: decrement nextIndex
     /// and retry (§5.3)
-    /// 
+    ///
     Leader,
 }
 

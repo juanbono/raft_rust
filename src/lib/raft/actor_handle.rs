@@ -11,7 +11,7 @@ pub struct RaftActorHandle {
 impl RaftActorHandle {
     /// Create a new Raft actor handle.
     /// This will spawn a new task to run the actor.
-    /// 
+    ///
     /// The handle can be cloned freely and can be used to send messages to the actor.
     pub fn new(peer_id: u8, peers: HashMap<u8, String>) -> Self {
         let (sender, receiver) = mpsc::channel(32);

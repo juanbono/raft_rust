@@ -1,8 +1,8 @@
 use std::{collections::HashMap, time::Duration};
 
+use super::state::RaftStateType;
 use crate::raft::{message::RaftMessage, state::RaftState};
 use tokio::sync::mpsc;
-use super::state::RaftStateType;
 
 pub struct RaftActor {
     peer_id: u8,

@@ -36,7 +36,7 @@ impl RpcApiServer for RpcBackend {
     fn get(&self, key: String) -> RpcResult<Option<String>> {
         // TODO: use the raft state
         let raft_state = self.raft_actor_handle.raft_state_type();
-        
+
         let kv = self.kv.lock().unwrap();
         match kv.get(&key) {
             Some(value) => Ok(Some(value.clone())),

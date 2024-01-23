@@ -1,20 +1,27 @@
-use crate::{raft::RaftActorHandle, utils::kv_error, RpcApiServer};
+use crate::{raft::RaftActorHandle, RpcApiClient, RpcApiServer};
 use jsonrpsee::core::{async_trait, RpcResult};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
+use tracing::info;
+
+use super::kv_error;
 
 pub struct RpcBackend {
     raft_actor_handle: RaftActorHandle,
+    // TODO: remove
+    peers: HashMap<u8, String>,
+    // TODO: remove
     kv: Arc<Mutex<HashMap<String, String>>>,
 }
 
 impl RpcBackend {
-    pub fn new() -> Self {
-        let raft_actor_handle = RaftActorHandle::new();
+    pub fn new(peer_id: u8, peers: HashMap<u8, String>) -> Self {
+        let raft_actor_handle = RaftActorHandle::new(peer_id, peers.clone());
         RpcBackend {
             raft_actor_handle,
+            peers,
             kv: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -27,6 +34,9 @@ impl RpcApiServer for RpcBackend {
     }
 
     fn get(&self, key: String) -> RpcResult<Option<String>> {
+        // TODO: use the raft state
+        let raft_state = self.raft_actor_handle.raft_state_type();
+
         let kv = self.kv.lock().unwrap();
         match kv.get(&key) {
             Some(value) => Ok(Some(value.clone())),
@@ -35,6 +45,9 @@ impl RpcApiServer for RpcBackend {
     }
 
     fn set(&self, key: String, value: String) -> RpcResult<()> {
+        // TODO: use the raft state
+        let raft_state = self.raft_actor_handle.raft_state_type();
+
         let mut kv = self.kv.lock().unwrap();
         // insert into the kv if it exists or not
         kv.entry(key).or_insert(value);
@@ -43,6 +56,9 @@ impl RpcApiServer for RpcBackend {
     }
 
     fn remove(&self, key: String) -> RpcResult<()> {
+        // TODO: use the raft state
+        let raft_state = self.raft_actor_handle.raft_state_type();
+
         let mut kv = self.kv.lock().unwrap();
         match kv.remove(&key) {
             Some(_) => Ok(()),
@@ -87,10 +103,20 @@ impl RpcApiServer for RpcBackend {
 
         Ok(result)
     }
-}
 
-impl Default for RpcBackend {
-    fn default() -> Self {
-        Self::new()
+    // TODO: remove
+    async fn echo(&self, peer_id: u8, message: String) -> RpcResult<String> {
+        let peer_addr = self.peers.get(&peer_id).unwrap().clone();
+        info!("echo: peer_id: {}, peer_addr: {}", peer_id, peer_addr);
+        let client = jsonrpsee::http_client::HttpClientBuilder::default()
+            .build(format!("http://{}", peer_addr))
+            .unwrap();
+        let response = client.version().await.unwrap();
+        Ok(response)
+    }
+
+    async fn raft_state(&self) -> RpcResult<String> {
+        let state = self.raft_actor_handle.raft_state_type().await;
+        Ok(format!("{:?}", state).to_ascii_lowercase())
     }
 }

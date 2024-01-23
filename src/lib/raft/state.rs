@@ -1,6 +1,51 @@
+/// Raft state machine states
+/// =========================
+/// Follower:
+/// - responds to RPCs from candidates and leaders
+/// - if election timeout elapses without receiving AppendEntries RPC from
+///   current leader or granting vote to candidate: convert to candidate and
+///   starts a new election
+///
+/// Candidate:
+/// - sends RequestVote RPCs to all other servers
+/// - receives votes from other servers
+/// - if votes received from majority of servers: become leader
+/// - if AppendEntries RPC received from new leader: convert to follower
+/// - if election timeout elapses: start new election
+///
+/// Leader:
+/// - Upon election: send initial empty AppendEntries RPCs (heartbeat) to each
+///  server; repeat during idle periods to prevent election timeouts (§5.2)
+/// - If command received from client: append entry to local log, respond after
+///  entry applied to state machine (§5.3)
+/// - If last log index ≥ nextIndex for a follower: send AppendEntries RPC with
+/// log entries starting at nextIndex
+/// - If successful: update nextIndex and matchIndex for follower (§5.3)
+/// - If AppendEntries fails because of log inconsistency: decrement nextIndex
+/// and retry (§5.3)
+#[derive(Debug, Clone, Copy)]
 pub enum RaftStateType {
+    /// - Responds to RPCs from candidates and leaders
+    /// - If election timeout elapses without receiving AppendEntries RPC from
+    ///   current leader or granting vote to candidate: convert to candidate and
+    ///   starts a new election
     Follower,
+    /// - Sends RequestVote RPCs to all other servers
+    /// - Receives votes from other servers
+    /// - If votes received from majority of servers: become leader
+    /// - If AppendEntries RPC received from new leader: convert to follower
+    /// - If election timeout elapses: start new election
     Candidate,
+    /// - Upon election: send initial empty AppendEntries RPCs (heartbeat) to each
+    ///  server; repeat during idle periods to prevent election timeouts (§5.2)
+    /// - If command received from client: append entry to local log, respond after
+    ///  entry applied to state machine (§5.3)
+    /// - If last log index ≥ nextIndex for a follower: send AppendEntries RPC with
+    /// log entries starting at nextIndex
+    /// - If successful: update nextIndex and matchIndex for follower (§5.3)
+    /// - If AppendEntries fails because of log inconsistency: decrement nextIndex
+    /// and retry (§5.3)
+    ///
     Leader,
 }
 

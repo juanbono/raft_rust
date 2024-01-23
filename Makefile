@@ -2,7 +2,7 @@ build:
 	cargo build --all
 
 server: build
-	RUST_LOG=info cargo run --bin server
+	RUST_LOG=info PEER_ID=$(peer) SERVER_CONFIG=config.yaml cargo run --bin server
 
 client: build
 	RUST_LOG=info cargo run --bin kv
@@ -15,3 +15,9 @@ lint:
 
 test:
 	cargo test --all
+
+docker-build:
+	docker build . -t server -f docker/Dockerfile
+
+docker-run:
+	docker run -p 8080:8080 -it --rm --name kv_server server

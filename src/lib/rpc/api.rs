@@ -35,4 +35,11 @@ pub trait RpcApi {
         last_log_index: u64,
         last_log_term: u64,
     ) -> RpcResult<bool>;
+
+    // Test RPCs
+    #[method(name = "echo")]
+    async fn echo(&self, peer_id: u8, message: String) -> RpcResult<String>;
+
+    #[method(name = "raft_state")]
+    async fn raft_state(&self) -> RpcResult<String>;
 }

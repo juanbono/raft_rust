@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{actor::RaftActor, message::RaftMessage};
+use super::{actor::RaftActor, message::RaftMessage, state::RaftStateType};
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Clone)]
@@ -9,12 +9,25 @@ pub struct RaftActorHandle {
 }
 
 impl RaftActorHandle {
+    /// Create a new Raft actor handle.
+    /// This will spawn a new task to run the actor.
+    /// 
+    /// The handle can be cloned freely and can be used to send messages to the actor.
     pub fn new(peer_id: u8, peers: HashMap<u8, String>) -> Self {
         let (sender, receiver) = mpsc::channel(32);
-        let actor = RaftActor::new(peer_id, peers, receiver);
+        let actor = RaftActor::new(peer_id, peers, sender.clone(), receiver);
         tokio::task::spawn(RaftActor::run(actor));
 
         Self { sender }
+    }
+
+    /// Get the current state of the Raft actor
+    pub async fn raft_state_type(&self) -> RaftStateType {
+        let (sender, receiver) = oneshot::channel();
+        let message = RaftMessage::GetRaftStateType { respond_to: sender };
+
+        self.sender.send(message).await.unwrap();
+        receiver.await.expect("Actor task has been killed")
     }
 
     pub async fn append_entries(

@@ -34,6 +34,9 @@ impl RpcApiServer for RpcBackend {
     }
 
     fn get(&self, key: String) -> RpcResult<Option<String>> {
+        // TODO: use the raft state
+        let raft_state = self.raft_actor_handle.raft_state_type();
+        
         let kv = self.kv.lock().unwrap();
         match kv.get(&key) {
             Some(value) => Ok(Some(value.clone())),
@@ -42,6 +45,9 @@ impl RpcApiServer for RpcBackend {
     }
 
     fn set(&self, key: String, value: String) -> RpcResult<()> {
+        // TODO: use the raft state
+        let raft_state = self.raft_actor_handle.raft_state_type();
+
         let mut kv = self.kv.lock().unwrap();
         // insert into the kv if it exists or not
         kv.entry(key).or_insert(value);
@@ -50,6 +56,9 @@ impl RpcApiServer for RpcBackend {
     }
 
     fn remove(&self, key: String) -> RpcResult<()> {
+        // TODO: use the raft state
+        let raft_state = self.raft_actor_handle.raft_state_type();
+
         let mut kv = self.kv.lock().unwrap();
         match kv.remove(&key) {
             Some(_) => Ok(()),
@@ -104,5 +113,10 @@ impl RpcApiServer for RpcBackend {
             .unwrap();
         let response = client.version().await.unwrap();
         Ok(response)
+    }
+
+    async fn raft_state(&self) -> RpcResult<String> {
+        let state = self.raft_actor_handle.raft_state_type().await;
+        Ok(format!("{:?}", state).to_ascii_lowercase())
     }
 }

@@ -2,7 +2,7 @@ build:
 	cargo build --all
 
 server: build
-	RUST_LOG=info PEER_ID=1 SERVER_CONFIG=config.yaml cargo run --bin server
+	RUST_LOG=info PEER_ID=$(peer) SERVER_CONFIG=config.yaml cargo run --bin server
 
 client: build
 	RUST_LOG=info cargo run --bin kv

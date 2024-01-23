@@ -39,4 +39,7 @@ pub trait RpcApi {
     // Test RPCs
     #[method(name = "echo")]
     async fn echo(&self, peer_id: u8, message: String) -> RpcResult<String>;
+
+    #[method(name = "raft_state")]
+    async fn raft_state(&self) -> RpcResult<String>;
 }

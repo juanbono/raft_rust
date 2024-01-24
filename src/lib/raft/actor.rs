@@ -18,7 +18,8 @@ pub struct RaftActor {
     peers: HashMap<u8, String>,
     self_: mpsc::Sender<RaftMessage>,
     receiver: mpsc::Receiver<RaftMessage>,
-    state: RaftState,
+    raft_state: RaftState,
+    state: HashMap<String, String>,
 }
 
 impl RaftActor {
@@ -33,7 +34,8 @@ impl RaftActor {
             peers,
             self_,
             receiver,
-            state: RaftState::new(),
+            raft_state: RaftState::new(),
+            state: HashMap::new(),
         }
     }
 
@@ -69,8 +71,46 @@ impl RaftActor {
 
     fn handle_message(&mut self, message: RaftMessage) {
         match message {
-            RaftMessage::AppendEntries { respond_to, .. } => {
-                
+            RaftMessage::AppendEntries {
+                respond_to,
+                term,
+                prev_log_index,
+                prev_log_term,
+                entries,
+                leader_id,
+                leader_commit,
+            } => {
+                // if term < currentTerm, reject (§5.1)
+                if term < self.raft_state.current_term {
+                    let _ = respond_to.send(false);
+                    return;
+                }
+
+                // if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm, reject (§5.3)
+                if self.raft_state.log.last_log_index() != prev_log_index
+                    || self.raft_state.log.last_entry_term() != prev_log_term
+                {
+                    let _ = respond_to.send(false);
+                    return;
+                }
+
+                self.raft_state.current_term = term;
+                self.raft_state.state_type = RaftStateType::Follower;
+
+                // TODO: implement
+                // if an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it (§5.3)
+
+                // append any new entries not already in the log
+                for entry in entries {
+                    self.raft_state.log.add_entry(entry);
+                }
+
+                // TODO: check correctness
+                // if leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
+                if leader_commit > self.raft_state.commit_index {
+                    self.raft_state.commit_index =
+                        leader_commit.min(self.raft_state.log.last_log_index());
+                }
             }
             RaftMessage::RequestVote {
                 respond_to,
@@ -80,23 +120,23 @@ impl RaftActor {
                 last_log_term,
             } => {
                 // reply false if term < currentTerm (§5.1)
-                if term < self.state.current_term {
+                if term < self.raft_state.current_term {
                     let _ = respond_to.send(false);
                     return;
                 }
                 // TODO: check how to handle log index correctly
-                let log_is_consistent = self.state.log.last_log_index() == last_log_index
-                    && self.state.log.last_entry_term() == last_log_term;
-                if self.state.voted_for.is_none() || log_is_consistent {
+                let log_is_consistent = self.raft_state.log.last_log_index() == last_log_index
+                    && self.raft_state.log.last_entry_term() == last_log_term;
+                if self.raft_state.voted_for.is_none() || log_is_consistent {
                     info!("Voting for candidate: {}", candidate_id);
-                    self.state.voted_for = Some(candidate_id);
-                    self.state.current_term = term;
+                    self.raft_state.voted_for = Some(candidate_id);
+                    self.raft_state.current_term = term;
                     let _ = respond_to.send(true);
                     return;
                 }
             }
             RaftMessage::GetRaftStateType { respond_to } => {
-                respond_to.send(self.state.state_type).unwrap();
+                respond_to.send(self.raft_state.state_type).unwrap();
             }
 
             RaftMessage::Timeout => {
@@ -116,20 +156,20 @@ impl RaftActor {
         let mut positive_votes = 0;
 
         // change state to candidate
-        self.state.state_type = RaftStateType::Candidate;
+        self.raft_state.state_type = RaftStateType::Candidate;
         // increment current term by 1
-        self.state.current_term += 1;
+        self.raft_state.current_term += 1;
         // vote for self
-        self.state.voted_for = Some(self.peer_id.to_string());
+        self.raft_state.voted_for = Some(self.peer_id.to_string());
         // here we accummulate the tasks to later wait for each one
         let mut joinset = tokio::task::JoinSet::new();
 
         for (_peer_id, peer_host) in self.peers.iter() {
             let host = peer_host.clone();
-            let term = self.state.current_term;
+            let term = self.raft_state.current_term;
             let candidate_id = self.peer_id.to_string();
-            let last_log_index = self.state.log.last_log_index();
-            let last_log_term = self.state.log.last_entry_term();
+            let last_log_index = self.raft_state.log.last_log_index();
+            let last_log_term = self.raft_state.log.last_entry_term();
             joinset.spawn(async move {
                 if let Ok(client) = HttpClientBuilder::default().build(format!("http://{}", host)) {
                     // send requestVote to the peer. If the peer is down, it will return false
@@ -151,7 +191,7 @@ impl RaftActor {
         info!("Positive votes: {}", positive_votes);
         if positive_votes >= MAJORITY_QUORUM {
             info!("Elected leader");
-            self.state.state_type = RaftStateType::Leader;
+            self.raft_state.state_type = RaftStateType::Leader;
             // send a heartbeat to all peers to establish authority and prevent new elections
             self.send_heartbeat_to_peers().await;
         }
@@ -160,11 +200,11 @@ impl RaftActor {
     async fn send_heartbeat_to_peers(&self) {
         for (_peer_id, peer_host) in self.peers.iter() {
             let host = peer_host.clone();
-            let term = self.state.current_term;
+            let term = self.raft_state.current_term;
             let leader_id = self.peer_id.to_string();
-            let prev_log_index = self.state.log.last_log_index();
-            let prev_log_term = self.state.log.last_entry_term();
-            let leader_commit = self.state.commit_index;
+            let prev_log_index = self.raft_state.log.last_log_index();
+            let prev_log_term = self.raft_state.log.last_entry_term();
+            let leader_commit = self.raft_state.commit_index;
             tokio::task::spawn(async move {
                 if let Ok(client) = HttpClientBuilder::default().build(format!("http://{}", host)) {
                     let _ = client

@@ -1,4 +1,4 @@
-use super::state::RaftStateType;
+use super::{log::LogEntry, state::RaftStateType};
 use tokio::sync::oneshot;
 
 pub enum RaftMessage {
@@ -8,7 +8,7 @@ pub enum RaftMessage {
         leader_id: String,
         prev_log_index: u64,
         prev_log_term: u64,
-        entries: Vec<String>,
+        entries: Vec<LogEntry>,
         leader_commit: u64,
     },
     RequestVote {

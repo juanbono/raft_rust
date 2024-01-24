@@ -46,6 +46,7 @@ impl RaftActor {
             // generate a new waiting_time
             timeout_time = {
                 let mut rng = rand::thread_rng();
+                // TODO: consider changing to a different timeout
                 let timeout = rng.gen_range(ELECTION_TIMEOUT_MIN..ELECTION_TIMEOUT_MAX);
                 tokio::time::Duration::from_millis(timeout)
             };
@@ -58,7 +59,7 @@ impl RaftActor {
                 Ok(None) | Err(_) => {
                     tracing::info!("Timeout, starting new election");
                     // wait for the election to finish at least a second
-                    // TODO: use a proper timeout
+                    // TODO: use a proper timeout, it should be a random time between 150ms and 300ms
                     let election_timeout = tokio::time::Duration::from_secs(1);
                     let _ = tokio::time::timeout(election_timeout, actor.start_election()).await;
                 }
@@ -69,9 +70,7 @@ impl RaftActor {
     fn handle_message(&mut self, message: RaftMessage) {
         match message {
             RaftMessage::AppendEntries { respond_to, .. } => {
-                // TODO: Add the real implementation
-
-                respond_to.send(false).unwrap();
+                
             }
             RaftMessage::RequestVote {
                 respond_to,
@@ -151,8 +150,36 @@ impl RaftActor {
 
         info!("Positive votes: {}", positive_votes);
         if positive_votes >= MAJORITY_QUORUM {
-            // TODO: add actual logic
             info!("Elected leader");
+            self.state.state_type = RaftStateType::Leader;
+            // send a heartbeat to all peers to establish authority and prevent new elections
+            self.send_heartbeat_to_peers().await;
+        }
+    }
+
+    async fn send_heartbeat_to_peers(&self) {
+        for (_peer_id, peer_host) in self.peers.iter() {
+            let host = peer_host.clone();
+            let term = self.state.current_term;
+            let leader_id = self.peer_id.to_string();
+            let prev_log_index = self.state.log.last_log_index();
+            let prev_log_term = self.state.log.last_entry_term();
+            let leader_commit = self.state.commit_index;
+            tokio::task::spawn(async move {
+                if let Ok(client) = HttpClientBuilder::default().build(format!("http://{}", host)) {
+                    let _ = client
+                        .append_entries(
+                            term,
+                            leader_id,
+                            prev_log_index,
+                            prev_log_term,
+                            // sending an empty entry array will be interpreted as a heartbeat
+                            vec![],
+                            leader_commit,
+                        )
+                        .await;
+                }
+            });
         }
     }
 }

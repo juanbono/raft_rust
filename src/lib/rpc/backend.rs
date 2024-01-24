@@ -107,17 +107,6 @@ impl RpcApiServer for RpcBackend {
         Ok(result)
     }
 
-    // TODO: remove
-    async fn echo(&self, peer_id: u8, message: String) -> RpcResult<String> {
-        let peer_addr = self.peers.get(&peer_id).unwrap().clone();
-        info!("echo: peer_id: {}, peer_addr: {}", peer_id, peer_addr);
-        let client = jsonrpsee::http_client::HttpClientBuilder::default()
-            .build(format!("http://{}", peer_addr))
-            .unwrap();
-        let response = client.version().await.unwrap();
-        Ok(response)
-    }
-
     async fn raft_state(&self) -> RpcResult<String> {
         let state = self.raft_actor_handle.raft_state_type().await;
         Ok(format!("{:?}", state).to_ascii_lowercase())

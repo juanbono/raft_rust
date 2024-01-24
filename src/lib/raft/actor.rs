@@ -136,12 +136,7 @@ impl RaftActor {
                 }
             }
             RaftMessage::GetRaftStateType { respond_to } => {
-                respond_to.send(self.raft_state.state_type).unwrap();
-            }
-
-            RaftMessage::Timeout => {
-                // TODO: start election after timeout
-                tracing::info!("Received: Timeout");
+                let _ = respond_to.send(self.raft_state.state_type);
             }
         }
     }

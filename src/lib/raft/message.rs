@@ -19,9 +19,6 @@ pub enum RaftMessage {
         last_log_term: u64,
     },
 
-    // Other protocol messages
-    Timeout,
-
     // Utility messages
     GetRaftStateType {
         respond_to: oneshot::Sender<RaftStateType>,

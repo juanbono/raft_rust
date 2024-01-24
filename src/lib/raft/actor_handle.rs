@@ -26,7 +26,7 @@ impl RaftActorHandle {
         let (sender, receiver) = oneshot::channel();
         let message = RaftMessage::GetRaftStateType { respond_to: sender };
 
-        self.sender.send(message).await.unwrap();
+        let _ = self.sender.send(message).await;
         receiver.await.expect("Actor task has been killed")
     }
 

@@ -85,9 +85,9 @@ impl RaftActor {
                     let _ = respond_to.send(false);
                     return;
                 }
-                let log_is_consistent = self.state.log.len() as u64 == last_log_index;
-                // TODO: see what we store in the logs and use it to check the term
-                // && self.state.log[last_log_index as usize] == last_log_term;
+                // TODO: check how to handle log index correctly
+                let log_is_consistent = self.state.log.last_log_index() == last_log_index
+                    && self.state.log.last_entry_term() == last_log_term;
                 if self.state.voted_for.is_none() || log_is_consistent {
                     info!("Voting for candidate: {}", candidate_id);
                     self.state.voted_for = Some(candidate_id);
@@ -114,47 +114,44 @@ impl RaftActor {
     /// - send RequestVote RPCs to all other servers
     ///
     async fn start_election(&mut self) {
+        let mut positive_votes = 0;
+
         // change state to candidate
         self.state.state_type = RaftStateType::Candidate;
         // increment current term by 1
         self.state.current_term += 1;
         // vote for self
         self.state.voted_for = Some(self.peer_id.to_string());
-
+        // here we accummulate the tasks to later wait for each one
         let mut joinset = tokio::task::JoinSet::new();
-
-        let mut positive_votes = 0;
 
         for (_peer_id, peer_host) in self.peers.iter() {
             let host = peer_host.clone();
             let term = self.state.current_term;
             let candidate_id = self.peer_id.to_string();
-            let last_log_index = self.state.log.len() as u64;
-            // TODO: this should be the last log term
-            let last_log_term = self.state.current_term;
+            let last_log_index = self.state.log.last_log_index();
+            let last_log_term = self.state.log.last_entry_term();
             joinset.spawn(async move {
-                let client = HttpClientBuilder::default()
-                    .build(format!("http://{}", host))
-                    .unwrap();
-
-                // send requestVote to the peer. If the peer is down, it will return false
-                client
-                    .request_vote(term, candidate_id, last_log_index, last_log_term)
-                    .await
-                    .unwrap_or(false)
+                if let Ok(client) = HttpClientBuilder::default().build(format!("http://{}", host)) {
+                    // send requestVote to the peer. If the peer is down, it will return false
+                    client
+                        .request_vote(term, candidate_id, last_log_index, last_log_term)
+                        .await
+                        .unwrap_or(false)
+                } else {
+                    false
+                }
             });
         }
         while let Some(vote_result) = joinset.join_next().await {
-            match vote_result {
-                Ok(true) => {
-                    positive_votes += 1;
-                }
-                _ => {}
+            if let Ok(true) = vote_result {
+                positive_votes += 1;
             }
         }
 
         info!("Positive votes: {}", positive_votes);
         if positive_votes >= MAJORITY_QUORUM {
+            // TODO: add actual logic
             info!("Elected leader");
         }
     }

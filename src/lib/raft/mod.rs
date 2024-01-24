@@ -1,5 +1,6 @@
 mod actor;
 mod actor_handle;
+mod log;
 mod message;
 mod state;
 

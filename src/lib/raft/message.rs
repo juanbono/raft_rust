@@ -58,7 +58,6 @@ impl std::fmt::Debug for RaftMessage {
                 .field("last_log_index", last_log_index)
                 .field("last_log_term", last_log_term)
                 .finish(),
-            Self::Timeout => write!(f, "Timeout"),
             Self::GetRaftStateType { .. } => f.debug_struct("GetRaftStateType").finish(),
         }
     }

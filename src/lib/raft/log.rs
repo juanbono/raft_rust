@@ -1,11 +1,13 @@
-#[derive(Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
 pub enum KvCommand {
     Get { key: String },
     Set { key: String, value: String },
     Remove { key: String },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct LogEntry {
     pub term: u64,
     pub command: KvCommand,

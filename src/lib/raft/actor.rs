@@ -171,8 +171,8 @@ impl RaftActor {
             let last_log_index = self.raft_state.log.last_log_index();
             let last_log_term = self.raft_state.log.last_entry_term();
             joinset.spawn(async move {
+                // send requestVote to the peer. If the peer is down, return false
                 if let Ok(client) = HttpClientBuilder::default().build(format!("http://{}", host)) {
-                    // send requestVote to the peer. If the peer is down, it will return false
                     client
                         .request_vote(term, candidate_id, last_log_index, last_log_term)
                         .await

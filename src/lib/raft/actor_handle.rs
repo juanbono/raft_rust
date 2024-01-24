@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{actor::RaftActor, message::RaftMessage, state::RaftStateType};
+use super::{actor::RaftActor, log::LogEntry, message::RaftMessage, state::RaftStateType};
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Clone)]
@@ -36,7 +36,7 @@ impl RaftActorHandle {
         leader_id: String,
         prev_log_index: u64,
         prev_log_term: u64,
-        entries: Vec<String>,
+        entries: Vec<LogEntry>,
         leader_commit: u64,
     ) -> bool {
         let (sender, receiver) = oneshot::channel();

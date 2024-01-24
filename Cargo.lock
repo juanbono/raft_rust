@@ -1191,6 +1191,7 @@ dependencies = [
  "anyhow",
  "console-subscriber",
  "jsonrpsee",
+ "rand",
  "serde",
  "serde_yaml",
  "tokio",

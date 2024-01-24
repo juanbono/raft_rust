@@ -1,6 +1,9 @@
 build:
 	cargo build --all
 
+# Run server with default config
+# make server peer=1
+# make server peer=2
 server: build
 	RUST_LOG=info PEER_ID=$(peer) SERVER_CONFIG=config.yaml cargo run --bin server
 

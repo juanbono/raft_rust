@@ -70,7 +70,16 @@ impl RaftActorHandle {
             last_log_term,
         };
 
-        self.sender.send(message).await.unwrap();
-        receiver.await.expect("Actor task has been killed")
+        // if the send fails, just return false
+        match self.sender.send(message).await {
+            Err(_) => return false,
+            _ => (),
+        }
+
+        // assume that something went wrong, just return false.
+        match receiver.await {
+            Ok(vote) => vote,
+            Err(_) => false,
+        }
     }
 }

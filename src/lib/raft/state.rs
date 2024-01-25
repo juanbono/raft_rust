@@ -52,6 +52,7 @@ pub enum RaftStateType {
 }
 
 pub struct RaftState {
+    pub current_leader_id: Option<u8>,
     pub state_type: RaftStateType,
     pub current_term: u64,
     pub voted_for: Option<String>,
@@ -66,6 +67,7 @@ pub struct RaftState {
 impl RaftState {
     pub fn new() -> Self {
         RaftState {
+            current_leader_id: None,
             state_type: RaftStateType::Follower,
             current_term: 0,
             voted_for: None,

@@ -15,7 +15,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let response: bool = client.request_vote(0, "".into(), 0, 0).await?;
     info!("response: {:?}", response);
 
-    let response: bool = client.append_entries(0, "".into(), 0, 0, vec![], 0).await?;
+    let response: bool = client.append_entries(0, 1, 0, 0, vec![], 0).await?;
     info!("response: {:?}", response);
 
     Ok(())

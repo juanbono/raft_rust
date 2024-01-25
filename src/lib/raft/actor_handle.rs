@@ -33,7 +33,7 @@ impl RaftActorHandle {
     pub async fn append_entries(
         &self,
         term: u64,
-        leader_id: String,
+        leader_id: u8,
         prev_log_index: u64,
         prev_log_term: u64,
         entries: Vec<LogEntry>,
@@ -50,8 +50,12 @@ impl RaftActorHandle {
             leader_commit,
         };
 
-        self.sender.send(message).await.unwrap();
-        receiver.await.expect("Actor task has been killed")
+        let _ = self.sender.send(message).await;
+        // assume that something went wrong, just return false
+        match receiver.await {
+            Ok(vote) => vote,
+            Err(_) => false,
+        }
     }
 
     pub async fn request_vote(
@@ -76,7 +80,7 @@ impl RaftActorHandle {
             _ => (),
         }
 
-        // assume that something went wrong, just return false.
+        // assume that something went wrong, just return false
         match receiver.await {
             Ok(vote) => vote,
             Err(_) => false,

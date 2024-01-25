@@ -22,7 +22,7 @@ pub trait RpcApi {
     async fn append_entries(
         &self,
         term: u64,
-        leader_id: String,
+        leader_id: u8,
         prev_log_index: u64,
         prev_log_term: u64,
         entries: Vec<LogEntry>,

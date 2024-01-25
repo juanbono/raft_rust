@@ -9,13 +9,13 @@ pub trait RpcApi {
     fn version(&self) -> RpcResult<String>;
 
     #[method(name = "get")]
-    fn get(&self, key: String) -> RpcResult<Option<String>>;
+    async fn get(&self, key: String) -> RpcResult<Option<String>>;
 
     #[method(name = "set")]
-    fn set(&self, key: String, value: String) -> RpcResult<()>;
+    async fn set(&self, key: String, value: String) -> RpcResult<()>;
 
     #[method(name = "remove")]
-    fn remove(&self, key: String) -> RpcResult<()>;
+    async fn remove(&self, key: String) -> RpcResult<()>;
 
     // Raft RPCs
     #[method(name = "appendEntries")]

@@ -86,4 +86,12 @@ impl RaftActorHandle {
             Err(_) => false,
         }
     }
+
+    pub async fn current_leader_id(&self) -> Option<u8> {
+        let (sender, receiver) = oneshot::channel();
+        let message = RaftMessage::GetCurrentLeaderId { respond_to: sender };
+
+        let _ = self.sender.send(message).await;
+        receiver.await.expect("Actor task has been killed")
+    }
 }

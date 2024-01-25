@@ -23,6 +23,10 @@ pub enum RaftMessage {
     GetRaftStateType {
         respond_to: oneshot::Sender<RaftStateType>,
     },
+
+    GetCurrentLeaderId {
+        respond_to: oneshot::Sender<Option<u8>>,
+    },
 }
 
 impl std::fmt::Debug for RaftMessage {

@@ -1,5 +1,5 @@
 use crate::{
-    raft::{LogEntry, RaftActorHandle},
+    raft::{LogEntry, RaftActorHandle, RaftStateType},
     RpcApiClient, RpcApiServer,
 };
 use jsonrpsee::core::{async_trait, RpcResult};
@@ -33,36 +33,66 @@ impl RpcApiServer for RpcBackend {
         Ok("0.1.0".into())
     }
 
-    fn get(&self, key: String) -> RpcResult<Option<String>> {
-        // TODO: use the raft state
-        let raft_state = self.raft_actor_handle.raft_state_type();
-
-        let kv = self.kv.lock().unwrap();
-        match kv.get(&key) {
-            Some(value) => Ok(Some(value.clone())),
-            None => RpcResult::Err(kv_error(format!("Key not found: {}", key))),
+    async fn get(&self, key: String) -> RpcResult<Option<String>> {
+        match self.raft_actor_handle.raft_state_type().await {
+            RaftStateType::Follower => {
+                // if the state is follower, then we need to redirect the request to the current leader
+                let current_leader_id = self.raft_actor_handle.current_leader_id().await.unwrap();
+                // create the client
+                // send an appendEntries with the request (or make a new message type?)
+                todo!();
+            },
+            RaftStateType::Leader => {
+                // if the state is leader, then we can just get the value from the kv
+                // also we need to append the KvCommand to the log
+                todo!();
+            },
+            RaftStateType::Candidate => {
+                // if the state is candidate, then we respond with an error
+                RpcResult::Err(kv_error(format!("Cannot get value from candidate state")))
+            },
         }
     }
 
-    fn set(&self, key: String, value: String) -> RpcResult<()> {
-        // TODO: use the raft state
-        let raft_state = self.raft_actor_handle.raft_state_type();
-
-        let mut kv = self.kv.lock().unwrap();
-        // insert into the kv if it exists or not
-        kv.entry(key).or_insert(value);
-
-        Ok(())
+    async fn set(&self, key: String, value: String) -> RpcResult<()> {
+        match self.raft_actor_handle.raft_state_type().await {
+            RaftStateType::Follower => {
+                // if the state is follower, then we need to redirect the request to the current leader
+                let current_leader_id = self.raft_actor_handle.current_leader_id().await.unwrap();
+                // create the client
+                // send an appendEntries with the request (or make a new message type?)
+                todo!();
+            },
+            RaftStateType::Leader => {
+                // if the state is leader, then we can just get the value from the kv
+                // also we need to append the KvCommand to the log
+                todo!();
+            },
+            RaftStateType::Candidate => {
+                // if the state is candidate, then we respond with an error
+                RpcResult::Err(kv_error(format!("Cannot get value from candidate state")))
+            },
+        }
     }
 
-    fn remove(&self, key: String) -> RpcResult<()> {
-        // TODO: use the raft state
-        let raft_state = self.raft_actor_handle.raft_state_type();
-
-        let mut kv = self.kv.lock().unwrap();
-        match kv.remove(&key) {
-            Some(_) => Ok(()),
-            None => RpcResult::Err(kv_error(format!("Key not found: {}", key))),
+    async fn remove(&self, key: String) -> RpcResult<()> {
+        match self.raft_actor_handle.raft_state_type().await {
+            RaftStateType::Follower => {
+                // if the state is follower, then we need to redirect the request to the current leader
+                let current_leader_id = self.raft_actor_handle.current_leader_id().await.unwrap();
+                // create the client
+                // send an appendEntries with the request (or make a new message type?)
+                todo!();
+            },
+            RaftStateType::Leader => {
+                // if the state is leader, then we can just get the value from the kv
+                // also we need to append the KvCommand to the log
+                todo!();
+            },
+            RaftStateType::Candidate => {
+                // if the state is candidate, then we respond with an error
+                RpcResult::Err(kv_error(format!("Cannot get value from candidate state")))
+            },
         }
     }
 

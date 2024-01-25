@@ -172,6 +172,9 @@ impl RaftActor {
             RaftMessage::GetRaftStateType { respond_to } => {
                 let _ = respond_to.send(self.raft_state.state_type);
             }
+            RaftMessage::GetCurrentLeaderId { respond_to } => {
+                let _ = respond_to.send(self.raft_state.current_leader_id);
+            },
         }
     }
 

@@ -16,7 +16,6 @@ const MAJORITY_QUORUM: u8 = 2;
 pub struct RaftActor {
     peer_id: u8,
     peers: HashMap<u8, String>,
-    self_: mpsc::Sender<RaftMessage>,
     receiver: mpsc::Receiver<RaftMessage>,
     raft_state: RaftState,
     state: HashMap<String, String>,
@@ -26,13 +25,11 @@ impl RaftActor {
     pub fn new(
         peer_id: u8,
         peers: HashMap<u8, String>,
-        self_: mpsc::Sender<RaftMessage>,
         receiver: mpsc::Receiver<RaftMessage>,
     ) -> Self {
         RaftActor {
             peer_id,
             peers,
-            self_,
             receiver,
             raft_state: RaftState::new(),
             state: HashMap::new(),

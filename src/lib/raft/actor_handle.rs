@@ -15,7 +15,7 @@ impl RaftActorHandle {
     /// The handle can be cloned freely and can be used to send messages to the actor.
     pub fn new(peer_id: u8, peers: HashMap<u8, String>) -> Self {
         let (sender, receiver) = mpsc::channel(32);
-        let actor = RaftActor::new(peer_id, peers, sender.clone(), receiver);
+        let actor = RaftActor::new(peer_id, peers, receiver);
         tokio::task::spawn(RaftActor::run(actor));
 
         Self { sender }

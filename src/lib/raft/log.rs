@@ -13,6 +13,12 @@ pub struct LogEntry {
     pub command: KvCommand,
 }
 
+impl LogEntry {
+    pub fn new(term: u64, command: KvCommand) -> Self {
+        Self { term, command }
+    }
+}
+
 #[derive(Debug)]
 pub struct Log {
     entries: Vec<LogEntry>,

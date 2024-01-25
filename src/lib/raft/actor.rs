@@ -172,9 +172,23 @@ impl RaftActor {
             RaftMessage::GetRaftStateType { respond_to } => {
                 let _ = respond_to.send(self.raft_state.state_type);
             }
-            RaftMessage::GetCurrentLeaderId { respond_to } => {
-                let _ = respond_to.send(self.raft_state.current_leader_id);
-            },
+            RaftMessage::GetCurrentLeader { respond_to } => {
+                let current_leader_id = self.raft_state.current_leader_id;
+                let current_leader_host = self.peers.get(&current_leader_id.unwrap());
+                match (current_leader_id, current_leader_host) {
+                    (Some(id), Some(host)) => {
+                        let _ = respond_to.send(Some((id, host.clone())));
+                    }
+                    _ => {
+                        let _ = respond_to.send(None);
+                    }
+                }
+            }
+            RaftMessage::GetLastLogIndexAndTerm { respond_to } => {
+                let last_log_index = self.raft_state.log.last_log_index();
+                let last_log_term = self.raft_state.log.last_entry_term();
+                let _ = respond_to.send((last_log_index, last_log_term));
+            }
         }
     }
 

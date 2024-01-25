@@ -1,13 +1,20 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum KvCommand {
     Get { key: String },
     Set { key: String, value: String },
     Remove { key: String },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+pub enum KvResponse {
+    Get(Option<String>),
+    Set(bool),
+    Remove(bool),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LogEntry {
     pub term: u64,
     pub command: KvCommand,
@@ -33,9 +40,9 @@ impl Log {
     pub fn add_entry(&mut self, entry: LogEntry) {
         // consistency check
         // TODO: revisit the paper to check if this is the one we need
-        if let Some(last_entry) = self.entries.last() {
-            assert!(last_entry.term < entry.term)
-        }
+        // if let Some(last_entry) = self.entries.last() {
+        //     assert!(last_entry.term < entry.term)
+        // }
 
         self.entries.push(entry);
     }

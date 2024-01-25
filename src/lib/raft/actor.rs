@@ -1,4 +1,4 @@
-use super::state::RaftStateType;
+use super::{state::RaftStateType, KvCommand, KvResponse, LogEntry};
 use crate::{
     raft::{message::RaftMessage, state::RaftState},
     RpcApiClient,
@@ -62,7 +62,7 @@ impl RaftActor {
             match actor.receiver.try_recv() {
                 Ok(message) => {
                     tracing::info!("Received message: {:?}", message);
-                    actor.handle_message(message);
+                    actor.handle_message(message).await;
                     actor.reset_timeout();
                     actor.last_time = Instant::now();
                 }
@@ -80,7 +80,7 @@ impl RaftActor {
         }
     }
 
-    fn handle_message(&mut self, message: RaftMessage) {
+    async fn handle_message(&mut self, message: RaftMessage) {
         match message {
             RaftMessage::AppendEntries {
                 respond_to,
@@ -110,19 +110,25 @@ impl RaftActor {
                     return;
                 }
 
-                warn!("Turning into follower");
-                // if the previous two checks are passed, we accept the entries and sync our state
-                // update our term
-                self.raft_state.current_term = term;
-                // turn into a follower if we were a candidate or leader
-                self.raft_state.state_type = RaftStateType::Follower;
-                self.raft_state.current_leader_id = Some(leader_id);
+                // if the term in the message is higher we accept the entries and sync our state
+                // also turn into follower if we were a candidate or leader
+                if term > self.raft_state.current_term {
+                    warn!("Turning into follower");
+                    // if the previous two checks are passed, we accept the entries and sync our state
+                    // update our term
+                    self.raft_state.current_term = term;
+                    // turn into a follower if we were a candidate or leader
+                    self.raft_state.state_type = RaftStateType::Follower;
+                    self.raft_state.current_leader_id = Some(leader_id);
+                }
                 // TODO: implement
                 // if an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it (§5.3)
 
                 // append any new entries not already in the log
+                // also apply them to the state machine
                 for entry in entries {
-                    self.raft_state.log.add_entry(entry);
+                    self.raft_state.log.add_entry(entry.clone());
+                    self.apply_command(entry.command);
                 }
 
                 // TODO: check correctness
@@ -174,13 +180,15 @@ impl RaftActor {
             }
             RaftMessage::GetCurrentLeader { respond_to } => {
                 let current_leader_id = self.raft_state.current_leader_id;
-                let current_leader_host = self.peers.get(&current_leader_id.unwrap());
-                match (current_leader_id, current_leader_host) {
-                    (Some(id), Some(host)) => {
-                        let _ = respond_to.send(Some((id, host.clone())));
-                    }
-                    _ => {
-                        let _ = respond_to.send(None);
+                if let Some(leader_id) = current_leader_id {
+                    let current_leader_host = self.peers.get(&leader_id);
+                    match current_leader_host {
+                        Some(host) => {
+                            let _ = respond_to.send(Some((leader_id, host.clone())));
+                        }
+                        None => {
+                            let _ = respond_to.send(None);
+                        }
                     }
                 }
             }
@@ -188,6 +196,26 @@ impl RaftActor {
                 let last_log_index = self.raft_state.log.last_log_index();
                 let last_log_term = self.raft_state.log.last_entry_term();
                 let _ = respond_to.send((last_log_index, last_log_term));
+            }
+            RaftMessage::ApplyCommand {
+                respond_to,
+                command,
+            } => {
+                let response = self.apply_command(command);
+                let _ = respond_to.send(response);
+            }
+
+            RaftMessage::ApplyAndBroadcast {
+                respond_to,
+                command,
+            } => {
+                let response = self.apply_command(command.clone());
+                let _ = respond_to.send(response);
+                let entry = LogEntry::new(self.raft_state.current_term, command.clone());
+                if self.is_leader() {
+                    self.raft_state.log.add_entry(entry.clone());
+                    self.send_entry_to_peers(entry).await;
+                }
             }
         }
     }
@@ -288,6 +316,36 @@ impl RaftActor {
         }
     }
 
+    async fn send_entry_to_peers(&self, entry: LogEntry) {
+        for (_peer_id, peer_host) in self.peers.iter() {
+            warn!("Sending entry to {}", peer_host);
+            let host = peer_host.clone();
+            let term = self.raft_state.current_term;
+            let leader_id = self.peer_id;
+            let prev_log_index = self.raft_state.log.last_log_index();
+            let prev_log_term = self.raft_state.log.last_entry_term();
+            let leader_commit = self.raft_state.commit_index;
+            let entry = entry.clone();
+            tokio::spawn(async move {
+                if let Ok(client) = HttpClientBuilder::default()
+                    .request_timeout(Duration::from_millis(3000))
+                    .build(format!("http://{}", host))
+                {
+                    let _ = client
+                        .append_entries(
+                            term,
+                            leader_id,
+                            prev_log_index,
+                            prev_log_term,
+                            vec![entry],
+                            leader_commit,
+                        )
+                        .await;
+                }
+            });
+        }
+    }
+
     /// Returns true if the actor is the current leader.
     pub fn is_leader(&self) -> bool {
         matches!(self.raft_state.state_type, RaftStateType::Leader)
@@ -298,5 +356,22 @@ impl RaftActor {
         let mut rng = rand::thread_rng();
         let timeout = rng.gen_range(ELECTION_TIMEOUT_MIN..ELECTION_TIMEOUT_MAX);
         self.timeout = Duration::from_secs(timeout);
+    }
+
+    fn apply_command(&mut self, command: KvCommand) -> KvResponse {
+        match command {
+            KvCommand::Set { key, value } => {
+                self.state.entry(key).or_insert(value);
+                KvResponse::Set(true)
+            }
+            KvCommand::Get { key } => match self.state.get(&key) {
+                Some(value) => KvResponse::Get(Some(value.clone())),
+                None => KvResponse::Get(None),
+            },
+            KvCommand::Remove { key } => match self.state.remove(&key) {
+                Some(_) => KvResponse::Remove(true),
+                None => KvResponse::Remove(false),
+            },
+        }
     }
 }

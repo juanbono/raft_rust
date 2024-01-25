@@ -1,16 +1,10 @@
 use super::kv_error;
-use crate::raft::{KvCommand, LogEntry, RaftActorHandle, RaftStateType};
+use crate::raft::{KvCommand, KvResponse, LogEntry, RaftActorHandle, RaftStateType};
 use crate::{RpcApiClient, RpcApiServer};
 use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::http_client::HttpClientBuilder;
 use std::collections::HashMap;
 use std::time::Duration;
-
-enum KvResponse {
-    Get(Option<String>),
-    Set(bool),
-    Remove(bool),
-}
 
 pub struct RpcBackend {
     raft_actor_handle: RaftActorHandle,
@@ -27,7 +21,7 @@ impl RpcBackend {
             .raft_actor_handle
             .current_leader()
             .await
-            .expect("protocol error: follower without leader");
+            .ok_or(kv_error("protocol error: follower without leader".into()))?;
 
         let (prev_log_index, prev_log_term) =
             self.raft_actor_handle.last_log_index_and_term().await;
@@ -35,7 +29,7 @@ impl RpcBackend {
         // get term,leader_commit
         let term = 0;
         let leader_commit = 0;
-        let command = LogEntry::new(term, command);
+        let log_entry = LogEntry::new(term, command.clone());
 
         // send the command to the leader
         let client = HttpClientBuilder::default()
@@ -43,24 +37,23 @@ impl RpcBackend {
             .build(format!("http://{}", leader_host))
             .map_err(|_| kv_error("cannot create client for the leader".to_string()))?;
 
-        let response = client
+        let leader_response = client
             .append_entries(
                 term,
                 leader_id,
                 prev_log_index,
                 prev_log_term,
-                vec![command],
+                vec![log_entry],
                 leader_commit,
             )
             .await
             .map_err(|_| kv_error("cannot send appendEntries to the leader".to_string()))?;
-        // TODO: aca que pasa si el leader me devuelve true? y si me devuelve false?
-        if response {
-            // TODO: apply the command to the kv?
-            todo!()
+
+        // apply the command if the leader accepted the new entries
+        if leader_response {
+            RpcResult::Ok(self.raft_actor_handle.apply_command(command).await)
         } else {
-            // return an error?
-            todo!()
+            RpcResult::Err(kv_error("Failed to send command to leader".into()))
         }
     }
 }
@@ -79,7 +72,17 @@ impl RpcApiServer for RpcBackend {
             RaftStateType::Leader => {
                 // if the state is leader, then we can just get the value from the kv
                 // also we need to append the KvCommand to the log
-                todo!();
+                let response = self
+                    .raft_actor_handle
+                    .apply_and_broadcast(KvCommand::Get {
+                        key: key.clone(),
+                    })
+                    .await;
+
+                match response {
+                    KvResponse::Get(Some(value)) => RpcResult::Ok(Some(value)),
+                    _ => RpcResult::Err(kv_error("Failed to get value".into())),
+                }
             }
             RaftStateType::Candidate => {
                 // if the state is candidate, return an error
@@ -100,9 +103,15 @@ impl RpcApiServer for RpcBackend {
                 }
             }
             RaftStateType::Leader => {
-                // if the state is leader, then we can just get the value from the kv
-                // also we need to append the KvCommand to the log
-                todo!();
+                // if the state is leader, then we can just set the value in the kv
+                // also we need to append the KvCommand to the log and broadcast
+                self.raft_actor_handle
+                    .apply_and_broadcast(KvCommand::Set {
+                        key: key.clone(),
+                        value: value.clone(),
+                    })
+                    .await;
+                Ok(())
             }
             RaftStateType::Candidate => {
                 // if the state is candidate, return an error

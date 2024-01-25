@@ -1,4 +1,7 @@
-use super::{actor::RaftActor, log::LogEntry, message::RaftMessage, state::RaftStateType};
+use super::{
+    actor::RaftActor, log::LogEntry, message::RaftMessage, state::RaftStateType, KvCommand,
+    KvResponse,
+};
 use std::collections::HashMap;
 use tokio::sync::{mpsc, oneshot};
 
@@ -87,12 +90,34 @@ impl RaftActorHandle {
         let message = RaftMessage::GetCurrentLeader { respond_to: sender };
 
         let _ = self.sender.send(message).await;
-        receiver.await.expect("Actor task has been killed")
+        receiver.await.unwrap_or(None)
     }
 
     pub async fn last_log_index_and_term(&self) -> (u64, u64) {
         let (sender, receiver) = oneshot::channel();
         let message = RaftMessage::GetLastLogIndexAndTerm { respond_to: sender };
+
+        let _ = self.sender.send(message).await;
+        receiver.await.expect("Actor task has been killed")
+    }
+
+    pub async fn apply_command(&self, command: KvCommand) -> KvResponse {
+        let (sender, receiver) = oneshot::channel();
+        let message = RaftMessage::ApplyCommand {
+            respond_to: sender,
+            command,
+        };
+
+        let _ = self.sender.send(message).await;
+        receiver.await.expect("Actor task has been killed")
+    }
+
+    pub async fn apply_and_broadcast(&self, command: KvCommand) -> KvResponse {
+        let (sender, receiver) = oneshot::channel();
+        let message = RaftMessage::ApplyAndBroadcast {
+            respond_to: sender,
+            command,
+        };
 
         let _ = self.sender.send(message).await;
         receiver.await.expect("Actor task has been killed")

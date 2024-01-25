@@ -1,4 +1,4 @@
-use super::{log::LogEntry, state::RaftStateType};
+use super::{log::LogEntry, state::RaftStateType, KvCommand, KvResponse};
 use tokio::sync::oneshot;
 
 pub enum RaftMessage {
@@ -37,6 +37,16 @@ pub enum RaftMessage {
     /// Get the last log entry index and term
     GetLastLogIndexAndTerm {
         respond_to: oneshot::Sender<(u64, u64)>,
+    },
+
+    ApplyCommand {
+        respond_to: oneshot::Sender<KvResponse>,
+        command: KvCommand,
+    },
+
+    ApplyAndBroadcast {
+        respond_to: oneshot::Sender<KvResponse>,
+        command: KvCommand,
     },
 }
 
@@ -78,6 +88,14 @@ impl std::fmt::Debug for RaftMessage {
             Self::GetLastLogIndexAndTerm { .. } => {
                 f.debug_struct("GetLastLogIndexAndTerm").finish()
             }
+            Self::ApplyCommand { command, .. } => f
+                .debug_struct("ApplyCommand")
+                .field("command", command)
+                .finish(),
+            Self::ApplyAndBroadcast { command, .. } => f
+                .debug_struct("ApplyAndBroadcast")
+                .field("command", command)
+                .finish(),
         }
     }
 }

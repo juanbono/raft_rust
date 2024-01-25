@@ -14,8 +14,6 @@ use super::kv_error;
 pub struct RpcBackend {
     raft_actor_handle: RaftActorHandle,
     // TODO: remove
-    peers: HashMap<u8, String>,
-    // TODO: remove
     kv: Arc<Mutex<HashMap<String, String>>>,
 }
 
@@ -24,7 +22,6 @@ impl RpcBackend {
         let raft_actor_handle = RaftActorHandle::new(peer_id, peers.clone());
         RpcBackend {
             raft_actor_handle,
-            peers,
             kv: Arc::new(Mutex::new(HashMap::new())),
         }
     }

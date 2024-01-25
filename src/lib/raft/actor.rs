@@ -6,11 +6,14 @@ use crate::{
 use jsonrpsee::http_client::HttpClientBuilder;
 use rand::{self, Rng};
 use std::collections::HashMap;
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, error::TryRecvError};
+use tokio::time::{Duration, Instant};
 use tracing::{info, warn};
 
-const ELECTION_TIMEOUT_MIN: u64 = 300;
-const ELECTION_TIMEOUT_MAX: u64 = 600;
+// old: 300,600 ms
+const ELECTION_TIMEOUT_MIN: u64 = 2;
+const ELECTION_TIMEOUT_MAX: u64 = 5;
+const HEARTBEAT_TIMEOUT: u64 = 2;
 const MAJORITY_QUORUM: u8 = 2;
 
 pub struct RaftActor {
@@ -18,6 +21,9 @@ pub struct RaftActor {
     peers: HashMap<u8, String>,
     receiver: mpsc::Receiver<RaftMessage>,
     raft_state: RaftState,
+    last_time: Instant,
+    timeout: Duration,
+    last_election: Instant,
     state: HashMap<String, String>,
 }
 
@@ -32,39 +38,42 @@ impl RaftActor {
             peers,
             receiver,
             raft_state: RaftState::new(),
+            last_time: Instant::now(),
+            timeout: Duration::from_secs(0),
+            last_election: Instant::now(),
             state: HashMap::new(),
         }
     }
 
     /// The main loop of the Raft actor.
     /// It continually polls the receiver channel for new messages.
-    /// If no message is received for `rand(ELECTION_TIMEOUT_MIN, ELECTION_TIMEOUT_MAX)` seconds, it will start a new election.
+    /// If no message is received for `rand(ELECTION_TIMEOUT_MIN, ELECTION_TIMEOUT_MAX)` units of time, it will start a new election.
     pub async fn run(mut actor: RaftActor) {
-        let mut timeout_time;
+        actor.last_time = Instant::now();
+        actor.reset_timeout();
         loop {
-            // generate a new waiting_time
-            timeout_time = {
-                let mut rng = rand::thread_rng();
-                // TODO: consider changing to a different timeout
-                let timeout = rng.gen_range(ELECTION_TIMEOUT_MIN..ELECTION_TIMEOUT_MAX);
-                tokio::time::Duration::from_millis(timeout)
-            };
-            // if the actor is a leader, send heartbeats to all peers
-            if actor.is_leader() {
+            let should_send_heartbeat =
+                actor.last_time.elapsed() > Duration::from_secs(HEARTBEAT_TIMEOUT);
+            if actor.is_leader() && should_send_heartbeat {
                 actor.send_heartbeat_to_peers().await;
+                actor.last_time = Instant::now();
+                actor.reset_timeout()
             }
-            tracing::info!("timeout for {:?}", timeout_time);
-            match tokio::time::timeout(timeout_time, actor.receiver.recv()).await {
-                Ok(Some(message)) => {
+            match actor.receiver.try_recv() {
+                Ok(message) => {
                     tracing::info!("Received message: {:?}", message);
                     actor.handle_message(message);
+                    actor.reset_timeout();
+                    actor.last_time = Instant::now();
                 }
-                Ok(None) | Err(_) if !actor.is_leader() => {
-                    tracing::info!("Timeout, starting new election");
-                    // wait for the election to finish at least a second
-                    // TODO: use a proper timeout, it should be a random time between 150ms and 300ms
-                    let election_timeout = tokio::time::Duration::from_secs(1);
-                    let _ = tokio::time::timeout(election_timeout, actor.start_election()).await;
+                Err(TryRecvError::Empty) if !actor.is_leader() => {
+                    let elapsed = actor.last_time.elapsed();
+                    if elapsed > actor.timeout {
+                        tracing::info!("Timeout, starting new election");
+                        actor.start_election().await;
+                        actor.reset_timeout();
+                        actor.last_time = Instant::now();
+                    }
                 }
                 _ => continue,
             }
@@ -134,7 +143,6 @@ impl RaftActor {
             } => {
                 // check if we already voted for someone else in this term
                 if let Some(voted_for) = &self.raft_state.voted_for {
-                    // TODO: looks like here we have a bug
                     if voted_for != &candidate_id && voted_for != &self.peer_id.to_string() {
                         warn!("Already voted for another candidate: {}", voted_for);
                         let _ = respond_to.send(false);
@@ -174,6 +182,9 @@ impl RaftActor {
     /// - send RequestVote RPCs to all other servers
     ///
     async fn start_election(&mut self) {
+        if self.last_election.elapsed() < self.timeout {
+            return;
+        }
         let mut positive_votes = 0;
 
         // change state to candidate
@@ -194,7 +205,10 @@ impl RaftActor {
             let last_log_term = self.raft_state.log.last_entry_term();
             joinset.spawn(async move {
                 // send requestVote to the peer. If the peer is down, return false
-                if let Ok(client) = HttpClientBuilder::default().build(format!("http://{}", host)) {
+                if let Ok(client) = HttpClientBuilder::default()
+                    .request_timeout(Duration::from_millis(3000))
+                    .build(format!("http://{}", host))
+                {
                     client
                         .request_vote(term, candidate_id, last_log_index, last_log_term)
                         .await
@@ -224,6 +238,7 @@ impl RaftActor {
             self.raft_state.voted_for = None;
             self.raft_state.current_leader_id = None;
         }
+        self.last_election = Instant::now();
     }
 
     async fn send_heartbeat_to_peers(&self) {
@@ -236,7 +251,10 @@ impl RaftActor {
             let prev_log_term = self.raft_state.log.last_entry_term();
             let leader_commit = self.raft_state.commit_index;
             tokio::spawn(async move {
-                if let Ok(client) = HttpClientBuilder::default().build(format!("http://{}", host)) {
+                if let Ok(client) = HttpClientBuilder::default()
+                    .request_timeout(Duration::from_millis(3000))
+                    .build(format!("http://{}", host))
+                {
                     let _ = client
                         .append_entries(
                             term,
@@ -256,5 +274,12 @@ impl RaftActor {
     /// Returns true if the actor is the current leader.
     pub fn is_leader(&self) -> bool {
         matches!(self.raft_state.state_type, RaftStateType::Leader)
+    }
+
+    /// Resets the timeout to a random value between `ELECTION_TIMEOUT_MIN` and `ELECTION_TIMEOUT_MAX`.
+    fn reset_timeout(&mut self) {
+        let mut rng = rand::thread_rng();
+        let timeout = rng.gen_range(ELECTION_TIMEOUT_MIN..ELECTION_TIMEOUT_MAX);
+        self.timeout = Duration::from_secs(timeout);
     }
 }

@@ -84,6 +84,10 @@ impl RaftActor {
             } => {
                 // if term < currentTerm, reject (§5.1)
                 if term < self.raft_state.current_term {
+                    warn!(
+                        "Term is lower than current term, rejecting. Term: {}, current term: {}",
+                        term, self.raft_state.current_term
+                    );
                     let _ = respond_to.send(false);
                     return;
                 }
@@ -92,10 +96,12 @@ impl RaftActor {
                 if self.raft_state.log.last_log_index() != prev_log_index
                     || self.raft_state.log.last_entry_term() != prev_log_term
                 {
+                    warn!("Log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm");
                     let _ = respond_to.send(false);
                     return;
                 }
 
+                warn!("Turning into follower");
                 // if the previous two checks are passed, we accept the entries and sync our state
                 // update our term
                 self.raft_state.current_term = term;
@@ -126,11 +132,6 @@ impl RaftActor {
                 last_log_index,
                 last_log_term,
             } => {
-                // if there is already a leader, reject the request
-                if self.raft_state.current_leader_id.is_some() {
-                    let _ = respond_to.send(false);
-                    return;
-                }
                 // check if we already voted for someone else in this term
                 if let Some(voted_for) = &self.raft_state.voted_for {
                     // TODO: looks like here we have a bug
@@ -217,6 +218,11 @@ impl RaftActor {
             self.raft_state.current_leader_id = Some(self.peer_id);
             // send a heartbeat to all peers to establish authority and prevent new elections
             self.send_heartbeat_to_peers().await;
+        } else {
+            info!("Not elected leader");
+            self.raft_state.state_type = RaftStateType::Follower;
+            self.raft_state.voted_for = None;
+            self.raft_state.current_leader_id = None;
         }
     }
 

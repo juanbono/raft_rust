@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{actor::RaftActor, message::RaftMessage, state::RaftStateType};
+use super::{actor::RaftActor, log::LogEntry, message::RaftMessage, state::RaftStateType};
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Clone)]
@@ -26,17 +26,17 @@ impl RaftActorHandle {
         let (sender, receiver) = oneshot::channel();
         let message = RaftMessage::GetRaftStateType { respond_to: sender };
 
-        self.sender.send(message).await.unwrap();
+        let _ = self.sender.send(message).await;
         receiver.await.expect("Actor task has been killed")
     }
 
     pub async fn append_entries(
         &self,
         term: u64,
-        leader_id: String,
+        leader_id: u8,
         prev_log_index: u64,
         prev_log_term: u64,
-        entries: Vec<String>,
+        entries: Vec<LogEntry>,
         leader_commit: u64,
     ) -> bool {
         let (sender, receiver) = oneshot::channel();
@@ -50,8 +50,12 @@ impl RaftActorHandle {
             leader_commit,
         };
 
-        self.sender.send(message).await.unwrap();
-        receiver.await.expect("Actor task has been killed")
+        let _ = self.sender.send(message).await;
+        // assume that something went wrong, just return false
+        match receiver.await {
+            Ok(vote) => vote,
+            Err(_) => false,
+        }
     }
 
     pub async fn request_vote(
@@ -70,7 +74,16 @@ impl RaftActorHandle {
             last_log_term,
         };
 
-        self.sender.send(message).await.unwrap();
-        receiver.await.expect("Actor task has been killed")
+        // if the send fails, just return false
+        match self.sender.send(message).await {
+            Err(_) => return false,
+            _ => (),
+        }
+
+        // assume that something went wrong, just return false
+        match receiver.await {
+            Ok(vote) => vote,
+            Err(_) => false,
+        }
     }
 }

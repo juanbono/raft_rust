@@ -1,5 +1,7 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+use crate::raft::LogEntry;
+
 #[rpc(server, client, namespace = "kv")]
 pub trait RpcApi {
     // KV RPCs
@@ -20,10 +22,10 @@ pub trait RpcApi {
     async fn append_entries(
         &self,
         term: u64,
-        leader_id: String,
+        leader_id: u8,
         prev_log_index: u64,
         prev_log_term: u64,
-        entries: Vec<String>,
+        entries: Vec<LogEntry>,
         leader_commit: u64,
     ) -> RpcResult<bool>;
 
@@ -37,9 +39,6 @@ pub trait RpcApi {
     ) -> RpcResult<bool>;
 
     // Test RPCs
-    #[method(name = "echo")]
-    async fn echo(&self, peer_id: u8, message: String) -> RpcResult<String>;
-
     #[method(name = "raft_state")]
     async fn raft_state(&self) -> RpcResult<String>;
 }

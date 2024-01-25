@@ -1,4 +1,7 @@
-use crate::{raft::RaftActorHandle, RpcApiClient, RpcApiServer};
+use crate::{
+    raft::{LogEntry, RaftActorHandle},
+    RpcApiClient, RpcApiServer,
+};
 use jsonrpsee::core::{async_trait, RpcResult};
 use std::{
     collections::HashMap,
@@ -69,10 +72,10 @@ impl RpcApiServer for RpcBackend {
     async fn append_entries(
         &self,
         term: u64,
-        leader_id: String,
+        leader_id: u8,
         prev_log_index: u64,
         prev_log_term: u64,
-        entries: Vec<String>,
+        entries: Vec<LogEntry>,
         leader_commit: u64,
     ) -> RpcResult<bool> {
         let result = self
@@ -102,17 +105,6 @@ impl RpcApiServer for RpcBackend {
             .await;
 
         Ok(result)
-    }
-
-    // TODO: remove
-    async fn echo(&self, peer_id: u8, message: String) -> RpcResult<String> {
-        let peer_addr = self.peers.get(&peer_id).unwrap().clone();
-        info!("echo: peer_id: {}, peer_addr: {}", peer_id, peer_addr);
-        let client = jsonrpsee::http_client::HttpClientBuilder::default()
-            .build(format!("http://{}", peer_addr))
-            .unwrap();
-        let response = client.version().await.unwrap();
-        Ok(response)
     }
 
     async fn raft_state(&self) -> RpcResult<String> {

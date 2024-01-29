@@ -1,8 +1,12 @@
+use super::{
+    actor::RaftActor, log::LogEntry, message::RaftMessage, state::RaftStateType, KvCommand,
+    KvResponse,
+};
 use std::collections::HashMap;
-
-use super::{actor::RaftActor, log::LogEntry, message::RaftMessage, state::RaftStateType};
 use tokio::sync::{mpsc, oneshot};
 
+/// A handle to a Raft actor.
+/// This can be used to interact with the actor instead of sending messages directly.
 #[derive(Clone)]
 pub struct RaftActorHandle {
     sender: mpsc::Sender<RaftMessage>,
@@ -52,10 +56,7 @@ impl RaftActorHandle {
 
         let _ = self.sender.send(message).await;
         // assume that something went wrong, just return false
-        match receiver.await {
-            Ok(vote) => vote,
-            Err(_) => false,
-        }
+        receiver.await.unwrap_or(false)
     }
 
     pub async fn request_vote(
@@ -75,15 +76,50 @@ impl RaftActorHandle {
         };
 
         // if the send fails, just return false
-        match self.sender.send(message).await {
-            Err(_) => return false,
-            _ => (),
+        if self.sender.send(message).await.is_err() {
+            return false;
         }
 
         // assume that something went wrong, just return false
-        match receiver.await {
-            Ok(vote) => vote,
-            Err(_) => false,
-        }
+        receiver.await.unwrap_or(false)
+    }
+
+    /// Returns the current leader id and host, if there is one
+    pub async fn current_leader(&self) -> Option<(u8, String)> {
+        let (sender, receiver) = oneshot::channel();
+        let message = RaftMessage::GetCurrentLeader { respond_to: sender };
+
+        let _ = self.sender.send(message).await;
+        receiver.await.unwrap_or(None)
+    }
+
+    pub async fn last_log_index_and_term(&self) -> (u64, u64) {
+        let (sender, receiver) = oneshot::channel();
+        let message = RaftMessage::GetLastLogIndexAndTerm { respond_to: sender };
+
+        let _ = self.sender.send(message).await;
+        receiver.await.expect("Actor task has been killed")
+    }
+
+    pub async fn apply_command(&self, command: KvCommand) -> KvResponse {
+        let (sender, receiver) = oneshot::channel();
+        let message = RaftMessage::ApplyCommand {
+            respond_to: sender,
+            command,
+        };
+
+        let _ = self.sender.send(message).await;
+        receiver.await.expect("Actor task has been killed")
+    }
+
+    pub async fn apply_and_broadcast(&self, command: KvCommand) -> KvResponse {
+        let (sender, receiver) = oneshot::channel();
+        let message = RaftMessage::ApplyAndBroadcast {
+            respond_to: sender,
+            command,
+        };
+
+        let _ = self.sender.send(message).await;
+        receiver.await.expect("Actor task has been killed")
     }
 }

@@ -1,7 +1,10 @@
-use super::{log::LogEntry, state::RaftStateType};
+use super::{log::LogEntry, state::RaftStateType, KvCommand, KvResponse};
 use tokio::sync::oneshot;
 
 pub enum RaftMessage {
+    //===== Raft RPC messages =====
+    /// Append entries request from another Raft node
+    /// It serves as both a heartbeat and a log replication mechanism
     AppendEntries {
         respond_to: oneshot::Sender<bool>,
         term: u64,
@@ -11,6 +14,7 @@ pub enum RaftMessage {
         entries: Vec<LogEntry>,
         leader_commit: u64,
     },
+    /// Vote request from another Raft node
     RequestVote {
         respond_to: oneshot::Sender<bool>,
         term: u64,
@@ -19,9 +23,30 @@ pub enum RaftMessage {
         last_log_term: u64,
     },
 
-    // Utility messages
+    //===== Utility messages =====
+    /// Get the current Raft state type
     GetRaftStateType {
         respond_to: oneshot::Sender<RaftStateType>,
+    },
+
+    /// Get the current leader id and host, if any
+    GetCurrentLeader {
+        respond_to: oneshot::Sender<Option<(u8, String)>>,
+    },
+
+    /// Get the last log entry index and term
+    GetLastLogIndexAndTerm {
+        respond_to: oneshot::Sender<(u64, u64)>,
+    },
+
+    ApplyCommand {
+        respond_to: oneshot::Sender<KvResponse>,
+        command: KvCommand,
+    },
+
+    ApplyAndBroadcast {
+        respond_to: oneshot::Sender<KvResponse>,
+        command: KvCommand,
     },
 }
 
@@ -59,6 +84,18 @@ impl std::fmt::Debug for RaftMessage {
                 .field("last_log_term", last_log_term)
                 .finish(),
             Self::GetRaftStateType { .. } => f.debug_struct("GetRaftStateType").finish(),
+            Self::GetCurrentLeader { .. } => f.debug_struct("GetCurrentLeader").finish(),
+            Self::GetLastLogIndexAndTerm { .. } => {
+                f.debug_struct("GetLastLogIndexAndTerm").finish()
+            }
+            Self::ApplyCommand { command, .. } => f
+                .debug_struct("ApplyCommand")
+                .field("command", command)
+                .finish(),
+            Self::ApplyAndBroadcast { command, .. } => f
+                .debug_struct("ApplyAndBroadcast")
+                .field("command", command)
+                .finish(),
         }
     }
 }

@@ -39,7 +39,7 @@ impl ServerConfig {
             .peers
             .get(&id)
             .expect("Malformed peer configuration file.")
-            .split(":")
+            .split(':')
             .collect::<Vec<&str>>();
         let host = host_port[0].to_string();
         let port = host_port[1]

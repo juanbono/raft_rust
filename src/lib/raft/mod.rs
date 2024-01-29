@@ -5,4 +5,5 @@ mod message;
 mod state;
 
 pub use actor_handle::RaftActorHandle;
-pub use log::LogEntry;
+pub use log::{KvCommand, KvResponse, LogEntry};
+pub use state::RaftStateType;
